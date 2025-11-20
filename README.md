@@ -124,12 +124,11 @@ python phrase_match_multilang_demo.py
 
 # 📊 4. 中文 vs 英文 Analyzer 分词对比图
 
-| English sentence | English analyzer | English tokens | 中文句子 | 中文 analyzer | 中文 tokens |
-| --- | --- | --- | --- | --- | --- |
-| "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | "向量检索 技术 推动 了 AI 系统 的 发展" | `standard` (错误示例) | *整句被视为单个 token → Phrase Match 无法工作* |
-| "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | "向量检索 技术 推动 了 AI 系统 的 发展" | `chinese` (Jieba) | `向量`, `检索`, `技术` |
-| **Result** |  |  | **Result** |  |  |
-| ✔ Phrase Match 生效 |  |  | ✔ Phrase Match 生效 |  |  |
+| Language | Sentence | Analyzer | Tokens | Phrase Match (slop=0) |
+| --- | --- | --- | --- | --- |
+| English | "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | ✔ |
+| 中文（错误示例） | "向量检索 技术 推动 了 AI 系统 的 发展" | `standard` | *整句被视为单个 token* | ✖ |
+| 中文（正确示例） | "向量检索 技术 推动 了 AI 系统 的 发展" | `chinese` (Jieba) | `向量`, `检索`, `技术` | ✔ |
 
 ---
 

@@ -124,28 +124,12 @@ python phrase_match_multilang_demo.py
 
 # 📊 4. 中文 vs 英文 Analyzer 分词对比图
 
-```
-┌───────────────────────────────┬──────────────────────────────┐
-│            英文句子            │            中文句子           │
-├───────────────────────────────┼──────────────────────────────┤
-│ "Machine learning improves    │ "向量检索 技术 推动 了 AI 系统 的 发展" │
-│  vector search performance."  │                                  │
-├───────────────────────────────┼──────────────────────────────┤
-│ Analyzer: english             │ Analyzer: standard (错误示例)    │
-│ Tokens:                       │ Tokens:                          │
-│  machine                      │  （整句当作 1 个 token）         │
-│  learning                     │  → Phrase Match 无法工作          │
-│  vector                       │                                  │
-├───────────────────────────────┼──────────────────────────────┤
-│ Analyzer: english（正确）       │ Analyzer: chinese（Jieba）        │
-│ Tokens:                       │ Tokens:                          │
-│  machine                      │  向量                            │
-│  learning                     │  检索                            │
-│  vector                       │  技术                            │
-├───────────────────────────────┼──────────────────────────────┤
-│ ✔ Phrase Match 生效             │ ✔ Phrase Match 生效               │
-└───────────────────────────────┴──────────────────────────────┘
-```
+| English sentence | English analyzer | English tokens | 中文句子 | 中文 analyzer | 中文 tokens |
+| --- | --- | --- | --- | --- | --- |
+| "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | "向量检索 技术 推动 了 AI 系统 的 发展" | `standard` (错误示例) | *整句被视为单个 token → Phrase Match 无法工作* |
+| "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | "向量检索 技术 推动 了 AI 系统 的 发展" | `chinese` (Jieba) | `向量`, `检索`, `技术` |
+| **Result** |  |  | **Result** |  |  |
+| ✔ Phrase Match 生效 |  |  | ✔ Phrase Match 生效 |  |  |
 
 ---
 

@@ -1,230 +1,161 @@
-# 🔍 Milvus 2.6 Phrase Match 多语言演示（中文 + 英文）
+# 🚀 **Milvus Phrase Match Demos（适配 Milvus 2.6）**
 
-本仓库提供一个可直接运行的 **Milvus 2.6 Phrase Match（短语匹配）多语言 Demo**，展示中英文 analyzer 的差异、短语匹配（Phrase Match）中位置与 slop 参数如何影响匹配行为、以及如何在实际检索场景中将短语匹配作为硬约束与向量检索结合来实现更精确且可控的 RAG / 企业知识库检索流程。示例内容包括：
+高级短语匹配 × 多语言分析 × 日志检索 × RAG 检索增强
 
-- 中文 & 英文 analyzer 对比
-- Phrase Match 的 slop 机制
-- 中文倒排分词与短语匹配演示
-- Phrase Match + 向量检索的混合搜索示例
-
-适用于：
-
-* RAG（Retrieval-Augmented Generation）
-* 企业知识库
-* 中英文混合搜索
-* 短语精确匹配（法律、技术文档、API 索引、专利检索）
+> 这个仓库展示了 Milvus 2.6 全新的 Phrase Match 能力：
+> **支持短语匹配、词序匹配、距离(slop)容忍、多语言分词、中英文混合场景**
+> 适用于搜索系统、企业知识库、日志检索、RAG 等真实工程场景。
 
 ---
 
-# ✨ Demo 功能亮点
-
-## 🔹 多语言 Analyzer 对比
-
-Milvus 内置的 analyzer 会直接影响 Phrase Match 结果：
-
-* 英文 → english analyzer
-* 中文 → chinese (Jieba) analyzer
-
-👉 使用 **standard** analyzer 会导致中文无法分词，Phrase Match 无法工作。
-
----
-
-## 🔹 Phrase Match slop 机制（连续 → 插词 → 倒序匹配）
-
-Phrase Match 支持 slop：
-
-| slop | 行为        | 示例             |
-| ---- | --------- | -------------- |
-| 0    | 必须连续短语    | “向量 检索”        |
-| 1    | 允许插入 1 个词 | “向量 **深度** 检索” |
-| 2    | 支持倒序/更大距离 | “检索 向量”        |
-
----
-
-## 🔹 混合搜索：Phrase Match + 向量检索
-
-生产级 RAG/搜索的黄金组合：
+# 📌 **仓库概览**
 
 ```
-1. Phrase Match 做硬约束（必须包含某短语）
-2. Vector Search 做语义排序（最相关的排前）
+milvus-phrase-match-demos/
+│
+├── phrase_match_logs_demo.py        # 日志短语匹配：展示 slop=0~3 的实际效果
+├── phrase_match_multilang_demo.py   # 中英混合短语匹配：展示多语言 + 分词器 + slop
+├── requirements.txt                 # 依赖
+└── README.md                        # 当前文件
 ```
 
 ---
 
-# 📁 项目结构
+# 🌟 **Phrase Match 是什么？为什么你需要它？**
 
-```
-.
-├── phrase_match_multilang_demo.py    # 主 Demo 脚本
-├── docker-compose.yml                # Milvus 2.6 Standalone 环境
-├── README.md                         # 本文件
-└── requirements.txt                  # Python 依赖
-```
+Milvus 2.6 引入的 Phrase Match 是一项搜索核心能力：
 
----
+> **基于倒排索引 + 分词 + 位置(position) + slop 的短语匹配技术。**
 
-# 🚀 1. 环境准备
+它能解决你在真实项目中 80% 的检索问题：
 
-## ① 安装 Docker（Ubuntu）
+* 错误日志中短语必须出现（词序不能乱）
+* 中文/英文短语是否连续决定了结果准确性
+* “机器 学习 模型”和“机器 深度 学习 模型”都应视为学术术语变体
+* 向量搜索无法表达“必须包含某短语”的硬约束
+* RAG 系统需要：**短语必须在文档中出现（硬过滤） + 语义相关（向量排序）**
 
-参考 Milvus 官方文档或执行：
+一句话总结：
 
-```bash
-sudo apt update
-sudo apt install docker.io docker-compose -y
-sudo usermod -aG docker $USER
-```
-
-⚠️ **添加 docker 用户组后记得重登系统**
+> **Phrase Match = 你可以完全控制词序、间距、倒序、插词数量，非常适合真实工程场景。**
 
 ---
 
-## ② 拉起 Milvus 2.6 Standalone
+# 🔥 **Demo 1：错误日志短语匹配**（`phrase_match_logs_demo.py`）
 
-```bash
-docker compose up -d
-```
+日志场景是 Phrase Match 的“降维打击”应用。
 
-成功后，访问：
+假设这些日志：
 
 ```
-http://localhost:19530
+connection reset by peer
+connection fast reset by peer
+connection was suddenly reset by the peer
+peer reset connection by ...
+peer unexpected connection reset happened
 ```
 
-Milvus 即处于可用状态。
+我们用 slop 展示短语匹配的容忍度：
+
+* **slop=0：必须连续**
+* **slop=1：允许插一个词**
+* **slop=2：允许插多个词**
+* **slop=3：允许倒序（中文英语通用）**
+
+📌 运行`phrase_match_logs_demo.py`, 输出示例
+
+<div align="center">
+  <img src="phrase_match_logs_demo.png" alt="Phrase Match 搜索日志演示" width="800"/>
+  <br>
+  <em>图1: Phrase Match 搜索日志演示</em>
+</div>
+
+👉 这正是 BM25 / 向量检索都做不到的维度。
 
 ---
 
-# 🐍 2. 创建 Python 环境
+# 🌍 **Demo 2：多语言短语匹配（中文 × 英文）**（`phrase_match_multilang_demo.py`）
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
+此 Demo 展示：
+
+* 中文 Jieba analyzer 与英文 english analyzer 的行为差异
+* slop=0/1/2/3 的匹配扩张过程
+* 中文倒序句式 + 英文倒序句式
+* 多语言 Phrase Match 的最佳工程实践
+
+运行 `phrase_match_multilang_demo.py` 看看实际效果:
+
+<div align="center">
+  <img src="en.png" alt="英文示例" width="400"/>
+  <img src="zh.png" alt="中文示例" width="400"/>
+</div>
+
+再重复一次：
+
+👉 **英文与中文行为一致**
+👉 **关键是你是否选了正确的 analyzer（english / chinese）**
+
+---
+
+# 🏗 **环境准备**
+
+Python 环境：
+
+```
 pip install -r requirements.txt
 ```
 
+requirements.txt：
+
+```
+pymilvus>=2.6
+numpy
+```
+
+Milvus：
+
+* 推荐 **Milvus 2.6 + Milvus Lite / docker / standalone**
+* URI 默认：`http://localhost:19530`
+* Token 默认：`root:Milvus`
+
 ---
 
-# ▶️ 3. 运行 Demo
+# ▶️ 运行 Demo
 
-```bash
+### 运行日志示例：
+
+```
+python phrase_match_logs_demo.py
+```
+
+### 运行中英混合示例：
+
+```
 python phrase_match_multilang_demo.py
 ```
 
-你会看到输出类似：
-
-<div align="center">
-  <img src="./exec_result.png" alt="执行结果" style="zoom:80%;" />
-  <br>
-  <em>phrase_match_multilang_demo.py执行结果</em>
-</div>
-
 ---
 
-# 📊 4. 中文 vs 英文 Analyzer 分词对比图
+# 🧠 **Phrase Match 的 slop 应该如何选？（工程实践）**
 
-| Language | Sentence | Analyzer | Tokens | Phrase Match (slop=0) |
-| --- | --- | --- | --- | --- |
-| English | "Machine learning improves vector search performance." | `english` | `machine`, `learning`, `vector`, `performance` | ✔ |
-| 中文（错误示例） | "向量检索 技术 推动 了 AI 系统 的 发展" | `standard` | *整句被视为单个 token* | ✖ |
-| 中文（正确示例） | "向量检索 技术 推动 了 AI 系统 的 发展" | `chinese` (Jieba) | `向量`, `检索`, `技术` | ✔ |
+这个仓库里包含了成熟的 slop 推荐策略：
 
----
+| slop   | 适用场景             | 特点         |
+| ------ | ---------------- | ---------- |
+| **0**  | 错误日志排查 、API 名称、法律条款 | 最严格，需要连续短语 |
+| **1**  | 技术手册、产品信息     | 允许插 1 个词   |
+| **2**  | 中英文混合内容、RAG      | 常用匹配区间     |
+| **3**  | 中文倒序较多的内容库、需要更宽松匹配    | 允许倒序       |
+| **≥4** | 不推荐              | 成本高、意义小    |
 
-# 🔬 5. Phrase Match 工作流程图（倒排 + pos + slop）
+总结：
 
-```
-文本 → Analyzer 分词 → 倒排索引(token→docID→position[])
-                                      │
-                                      ▼
-       Phrase Query 解析："向量 检索" → ["向量", "检索"]
-                                      │
-                                      ▼
-         倒排表求交集：必须包含所有 token 的文档
-                                      │
-                                      ▼
-         position 匹配（slop）：
-            pos2 - pos1 - 1 ≤ slop ?
-            或 abs(pos2 - pos1) ≤ slop（倒序）
-                                      │
-                                      ▼
-               slop=0：必须连续
-               slop=1：允许插 1 个词
-               slop=2：支持倒序 / 更大距离
-                                      │
-                                      ▼
-                    输出最终命中文档
-```
+> **slop 越小越严格，越大越宽松，超过 3 没必要。**
 
----
+Milvus 2.6 之后，
+**向量 + Phrase Match** 才是企业级搜索/RAG 的最佳实践组合。
 
-# 🧪 6. Demo 对比结果（中文）
+欢迎直接跑 Demo，也欢迎 PR、提 issue，一起完善更多示例！
 
-## ✔ slop=0（必须连续短语）
-
-匹配：
-
-```
-向量检索 技术 推动 了 ...
-```
-
----
-
-## ✔ slop=1（允许插词）
-
-匹配：
-
-```
-向量检索 技术 ...
-机器 学习 模型 与 向量 检索 ...
-```
-
----
-
-## ✔ slop=2（倒序 / 多词间隔）
-
-匹配：
-
-```
-在 实际 应用 中，向量 深度 检索 方法 ...
-```
-
----
-
-# 🧠 7. 为什么 Phrase Match 在生产中很重要？
-
-适用于：
-
-* RAG（硬约束：必须含某短语）
-* 法律条款搜索（顺序和距离非常关键）
-* 技术文档/专利检索（名词短语固定）
-* 日志分析（match 特定短语）
-* 多语言内容平台（中英文自动分词）
-
----
-
-# 🔥 8. Phrase Match + Vector Search = 最佳实践
-
-```python
-client.search(
-    anns_field="embeddings",
-    data=[query_vec],
-    filter="PHRASE_MATCH(text_zh, '向量 检索', 1)",
-    limit=5
-)
-```
-
-* Phrase Match → 过滤
-* 向量检索 → 语义排序
-
-这是工业级搜索/RAG 的主流方案。
-
----
-
-# ❤️ 9. 联系与贡献
-
-欢迎提交 Issue / PR
-也欢迎加入 Milvus 社区交流与贡献！
 
 

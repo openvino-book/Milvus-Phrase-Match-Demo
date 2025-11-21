@@ -2,23 +2,23 @@ from pymilvus import MilvusClient, DataType
 import numpy as np
 
 # ========================================
-#   ANSI Color Helper Functions
+#  ANSI Color Helpers（终端高亮输出）
 # ========================================
-def blue(t): return f"\033[94m{t}\033[0m"
-def green(t): return f"\033[92m{t}\033[0m"
-def yellow(t): return f"\033[93m{t}\033[0m"
-def red(t): return f"\033[91m{t}\033[0m"
-def bold(t): return f"\033[1m{t}\033[0m"
-def cyan(t): return f"\033[96m{t}\033[0m"
+def blue(text): return f"\033[94m{text}\033[0m"
+def green(text): return f"\033[92m{text}\033[0m"
+def yellow(text): return f"\033[93m{text}\033[0m"
+def red(text): return f"\033[91m{text}\033[0m"
+def bold(text): return f"\033[1m{text}\033[0m"
+def cyan(text): return f"\033[96m{text}\033[0m"
 
 
 URI = "http://localhost:19530"
 TOKEN = "root:Milvus"
-COLLECTION_NAME = "multilang_phrase_demo"
+COLLECTION_NAME = "logs_phrase_demo"
 
 
 # ========================================
-#   Create collection with multi-language analyzer
+#  Collection Setup
 # ========================================
 def setup_collection(client: MilvusClient):
     if client.has_collection(COLLECTION_NAME):
@@ -30,12 +30,12 @@ def setup_collection(client: MilvusClient):
         field_name="id",
         datatype=DataType.INT64,
         is_primary=True,
-        auto_id=True
+        auto_id=True,
     )
 
-    # English analyzer
+    # 日志字段（英文日志，用 english analyzer）
     schema.add_field(
-        field_name="text_en",
+        field_name="log_text",
         datatype=DataType.VARCHAR,
         max_length=2000,
         enable_analyzer=True,
@@ -43,21 +43,11 @@ def setup_collection(client: MilvusClient):
         analyzer_params={"type": "english"},
     )
 
-    # Chinese analyzer（Jieba）
-    schema.add_field(
-        field_name="text_zh",
-        datatype=DataType.VARCHAR,
-        max_length=2000,
-        enable_analyzer=True,
-        enable_match=True,
-        analyzer_params={"type": "chinese"},
-    )
-
     EMB_DIM = 16
     schema.add_field(
         field_name="embeddings",
         datatype=DataType.FLOAT_VECTOR,
-        dim=EMB_DIM
+        dim=EMB_DIM,
     )
 
     client.create_collection(
@@ -65,6 +55,7 @@ def setup_collection(client: MilvusClient):
         schema=schema,
     )
 
+    # 索引
     index_params = client.prepare_index_params()
     index_params.add_index(
         field_name="embeddings",
@@ -72,139 +63,125 @@ def setup_collection(client: MilvusClient):
         metric_type="IP",
         params={"M": 8, "efConstruction": 64},
     )
-    client.create_index(COLLECTION_NAME, index_params)
+    client.create_index(
+        collection_name=COLLECTION_NAME,
+        index_params=index_params,
+    )
 
     return EMB_DIM
 
 
 # ========================================
-#   Insert multilingual data
-#   （保留你现在的语料，只调整成小写英文 + 去掉句号，减少 analyzer 干扰）
+#  Insert log data
 # ========================================
-def insert_data(client: MilvusClient, emb_dim: int):
-    english = [
-        "machine learning improves performance",
-        "machine fast learning is widely used",
-        "machine very fast learning yields better results",
-        "learning machine methods are commonly adopted in research",
+def insert_logs(client: MilvusClient, emb_dim):
+    logs = [
+        # 完整短语（标准错误）
+        "error: connection reset by peer",
+
+        # 插词版本
+        "fatal: tcp connection reset by remote peer",
+
+        # 多插词
+        "connection was unexpectedly reset by the peer",
+
+        # 倒序
+        "peer reset the connection",
+
+        # 错误误命中案例（BM25 会命中，但不是这个错误）
+        "peer connection established successfully",
+
+        # 内容相关但不是 reset
+        "remote peer closed connection normally",
+
+        # 完全不同的错误
+        "connection timeout occurred",
+
+        # 完全不同
+        "peer authentication failed",
     ]
 
-    chinese = [
-        "向量 检索 性能 很 强",
-        "向量 快速 检索 在 工程 中 很 常见",
-        "向量 深度 复杂 检索 在 AI 中 很 关键",
-        "检索 向量 方法 在 搜索 中 很 常见",
-    ]
+    rng = np.random.default_rng(seed=42)
+    vectors = rng.random((len(logs), emb_dim)).astype("float32")
 
-    total = len(english)
-    rng = np.random.default_rng(42)
-    vectors = rng.random((total, emb_dim)).astype("float32")
-
-    rows = []
-    for en, zh, v in zip(english, chinese, vectors):
-        rows.append({"text_en": en, "text_zh": zh, "embeddings": v.tolist()})
-
-    client.insert(collection_name=COLLECTION_NAME, data=rows)
+    data = [{"log_text": t, "embeddings": v.tolist()} for t, v in zip(logs, vectors)]
+    client.insert(collection_name=COLLECTION_NAME, data=data)
     client.load_collection(COLLECTION_NAME)
 
-    return english, chinese
+    return logs, vectors
 
 
 # ========================================
-#   Phrase Match With Color Output + Diff
+#  Phrase Match Query（彩色输出）
 # ========================================
-def phrase(client, field, phrase, slop=None, prev_hits=None, title=""):
+def phrase(client, phrase: str, slop: int | None = None):
     if slop is None:
-        expr = f"PHRASE_MATCH({field}, '{phrase}')"
+        expr = f"PHRASE_MATCH(log_text, '{phrase}')"
     else:
-        expr = f"PHRASE_MATCH({field}, '{phrase}', {slop})"
+        expr = f"PHRASE_MATCH(log_text, '{phrase}', {slop})"
 
     print(bold(cyan(f"▶ {expr}")))
 
     results = client.query(
         collection_name=COLLECTION_NAME,
         filter=expr,
-        output_fields=[field]
+        output_fields=["id", "log_text"],
     )
-
-    # 当前命中的文本集合（用来做差集）
-    current = [r[field] for r in results]
-    current_set = set(current)
-
-    print(f"  共命中 {len(current)} 条")
 
     if not results:
         print(red("  (no matches)\n"))
-        return current_set
+        return
 
-    # 先把所有命中打印出来
-    for t in current:
-        print(green(f"  ✓ {t}"))
-
-    # 如果有上一轮 slop 的结果，打印「相比上一次新增了什么」
-    if prev_hits is not None:
-        new_hits = current_set - prev_hits
-        if new_hits:
-            print(yellow("  ↑ 相比上一档 slop 新增匹配："))
-            for t in new_hits:
-                print(yellow(f"    + {t}"))
-        else:
-            print(yellow("  ↑ 相比上一档 slop 没有新增匹配（说明上一个 slop 已经足够覆盖所有变体）"))
-
-    return current_set
+    for r in results:
+        print(green(f"  ✓ [id={r['id']}] {r['log_text']}"))
 
 
 # ========================================
-#   Main Demo
+#  Baseline TEXT_MATCH（展示误命中）
+# ========================================
+def compare_baseline_TEXT_MATCH(client):
+    print(bold(red("==============================")))
+    print(bold(red("❌ BASELINE: TEXT_MATCH(log_text, 'connection AND peer')")))
+    print(bold(red("（演示普通文本匹配的误命中问题）")))
+    print(bold(red("==============================")))
+
+    results = client.query(
+        collection_name=COLLECTION_NAME,
+        filter="TEXT_MATCH(log_text, 'connection AND peer')",
+        output_fields=["id", "log_text"],
+    )
+
+    for r in results:
+        print(yellow(f"  ⚠ [id={r['id']}] {r['log_text']}"))
+
+
+# ========================================
+#  Main
 # ========================================
 def main():
     client = MilvusClient(uri=URI, token=TOKEN)
     emb_dim = setup_collection(client)
-    insert_data(client, emb_dim)
+    logs, vectors = insert_logs(client, emb_dim)
 
-    # ---------- 英文 ----------
-    print(bold("============================"))
-    print(bold("🌍 英文 Phrase Match 演示"))
-    print(bold("============================"))
+    # Baseline：文本匹配误命中
+    compare_baseline_TEXT_MATCH(client)
 
-    prev = None
-
-    print(blue("\n🔵 slop=0（必须连续）"))
-    print("预期：只命中完全连续的 'machine learning'")
-    prev = phrase(client, "text_en", "machine learning", None, prev)
-
-    print(green("\n🟢 slop=1（允许插 1 个词）"))
-    print("预期：允许 'machine X learning' 这类变体")
-    prev = phrase(client, "text_en", "machine learning", 1, prev)
-
-    print(yellow("\n🟡 slop=2（允许更多插词 & 轻微换序）"))
-    print("预期：命中更多自然语言变体，包括部分词序变化")
-    prev = phrase(client, "text_en", "machine learning", 2, prev)
-
-    print(red("\n🔴 slop=3（继续放宽 slop）"))
-    print("预期：如果还存在更极端的变体，这里会继续扩张；否则命中集合不再变化")
-    prev = phrase(client, "text_en", "machine learning", 3, prev)
-
-
-    # ---------- 中文 ----------
+    # Phrase Match 演示
     print(bold("\n============================"))
-    print(bold("🈺 中文 Phrase Match 演示"))
+    print(bold("🎯 Phrase Match 精确匹配演示"))
     print(bold("============================"))
 
-    prev = None
+    print(blue("🔵 slop=0：完全连续短语匹配"))
+    phrase(client, "connection reset by peer")
 
-    print(blue("\n🔵 slop=0（连续短语）"))
-    print("预期：只命中连续出现『向量 检索』的句子")
-    prev = phrase(client, "text_zh", "向量 检索", None, prev)
+    print(green("\n🟢 slop=1：允许插入 1 个词"))
+    phrase(client, "connection reset by peer", 1)
 
-    print(green("\n🟢 slop=1（允许插入 1 个词）"))
-    prev = phrase(client, "text_zh", "向量 检索", 1, prev)
+    print(yellow("\n🟡 slop=2：允许多个插词"))
+    phrase(client, "connection reset by peer", 2)
 
-    print(yellow("\n🟡 slop=2（允许更大间距）"))
-    prev = phrase(client, "text_zh", "向量 检索", 2, prev)
-
-    print(red("\n🔴 slop=3（允许更松的间距 / 词序变化）"))
-    prev = phrase(client, "text_zh", "向量 检索", 3, prev)
+    print(red("\n🔴 slop=3：允许倒序 & 多插词"))
+    phrase(client, "connection reset by peer", 3)
 
 
 if __name__ == "__main__":

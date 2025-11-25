@@ -159,5 +159,5 @@ python phrase_match_multilang_demo.py
 * 提交 issue
 * PR 更多示例
 * 讨论中文 slop 的最佳实践
-* 一起共建 show_slop 工具
+* 讨论Phrase Match的产业最佳实践
 

@@ -65,8 +65,8 @@ python phrase_match_multilang_demo.py
 ```
 
 <div align="center">
-  <img src="en.png" width="45%" />
-  <img src="zh.png" width="45%" />
+  <img src="en.png" width="50%" />
+  <img src="zh.png" width="49%" />
 </div>
 
 
